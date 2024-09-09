@@ -1,55 +1,50 @@
-import { HfInference } from '@huggingface/inference';
+import axios from 'axios';
 import { NextRequest, NextResponse } from 'next/server';
 
-const inference = new HfInference(process.env.HUGGINGFACE_API_KEY);
+const apiKey = process.env.LEONARDO_API_KEY;
+const authorization = `Bearer ${apiKey}`;
 
 export async function POST(req: NextRequest) {
   try {
-    const { content }: { content: Record<string, string> } = await req.json();
-    console.log(content);
+    const body = await req.json();
+    const { prompt } = body;
 
-    const generatedImageSequences = await Promise.all(
-      Object.values(content).map(async (chapterText: string) => {
-        const basePrompt = `Highly detailed, professional quality, photorealistic, 8k resolution, sharp focus, intricate details, vibrant colors: ${chapterText.slice(
-          0,
-          150
-        )}`;
+    if (!prompt) {
+      console.log('pas de promnt');
+    }
 
-        // Générer une séquence de 5 images légèrement différentes
-        const imageSequence = await Promise.all(
-          Array(5)
-            .fill(null)
-            .map(async (_, index) => {
-              const enhancedPrompt = `${basePrompt} Frame ${
-                index + 1
-              } of a subtle animation sequence.`;
+    const generationPayload = {
+      height: 512,
+      width: 512,
+      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3',
+      prompt,
+    };
 
-              const result = await inference.textToImage({
-                model: 'stabilityai/stable-diffusion-xl-base-1.0',
-                inputs: enhancedPrompt,
-              });
-              const base64Image = Buffer.from(
-                await result.arrayBuffer()
-              ).toString('base64');
-              return `data:image/jpeg;base64,${base64Image}`;
-            })
-        );
-
-        return imageSequence;
-      })
-    );
-
-    return NextResponse.json(
-      { imageSequences: generatedImageSequences },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error('Error generating image sequences:', error);
-    return NextResponse.json(
+    const generationResponse = await axios.post(
+      'https://cloud.leonardo.ai/api/rest/v1/generations',
+      generationPayload,
       {
-        message: 'Error generating image sequences',
-        error: error instanceof Error ? error.message : String(error),
-      },
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          authorization,
+        },
+      }
+    );
+    console.log(generationResponse);
+
+    if (generationResponse.status !== 200) {
+      throw new Error(
+        `Failed to generate images: ${generationResponse.statusText}`
+      );
+    }
+
+    const images = generationResponse.data.generations_by_pk.images;
+    return NextResponse.json({ images });
+  } catch (error) {
+    console.error('Error generating images:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

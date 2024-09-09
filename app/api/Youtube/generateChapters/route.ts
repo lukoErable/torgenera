@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const { topic, model } = await req.json();
 
   try {
-    const prompt = `Generate a paragraph title for a documentary or a story about ${topic}. Respond with a JSON object with short titles. do not put Explanation on the response json. I want to use this promt to develop each parts later`;
+    const prompt = `Generate a title for a short topic about ${topic}. Respond with a JSON object with 1 short title. do not put Explanation on the response json.`;
 
     const response = await inference.chatCompletion({
       model,

@@ -1,101 +1,63 @@
-const axios = require('axios');
-const fs = require('fs').promises;
-const path = require('path');
-const FormData = require('form-data');
-const sharp = require('sharp');
+const leonardoai = require('@api/leonardoai');
 
-const HUGGING_FACE_API_TOKEN = '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';
-const TEXT_TO_IMAGE_MODEL_URL =
-  'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-dev';
-const IMAGE_TO_VIDEO_MODEL_URL =
-  'https://api-inference.huggingface.co/models/vdo/stable-video-diffusion-img2vid-xt-1-1';
-const STABILITY_AI_API_KEY =
-  'sk-HjY1nleba4t4wddCvLmPokKjrCWoxWwU59u8tTsTBmCGRQE2s'; // Replace with your actual Stability AI API key
+// Set your API key
+leonardoai.auth('YOUR_API_KEY');
 
-// Step 1: Generate the image
-async function generateImage(prompt) {
-  try {
-    const response = await axios({
-      method: 'POST',
-      url: TEXT_TO_IMAGE_MODEL_URL,
-      headers: {
-        Authorization: `Bearer ${HUGGING_FACE_API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      data: { inputs: prompt },
-      responseType: 'arraybuffer',
-    });
-
-    const imageBuffer = response.data;
-    const imagePath = `./generated_image.png`;
-    await fs.writeFile(imagePath, imageBuffer);
-    console.log(`Image saved as ${imagePath}`);
-    return imagePath;
-  } catch (error) {
-    console.error(
-      'Error generating image:',
-      error.response ? error.response.data : error.message
-    );
-    throw error;
-  }
-}
-
-// Step 2: Resize the image
-async function resizeImage(inputPath, outputPath, width, height) {
-  await sharp(inputPath)
-    .resize(width, height, { fit: 'cover' })
-    .toFile(outputPath);
-  console.log(`Image resized to ${width}x${height}`);
-}
-
-// Step 3: Animate the generated image
-async function animateImage(imagePath) {
-  try {
-    const resizedImagePath = './resized_image.png';
-    await resizeImage(imagePath, resizedImagePath, 1024, 576);
-
-    const data = new FormData();
-    data.append(
-      'image',
-      await fs.readFile(resizedImagePath),
-      path.basename(resizedImagePath)
-    );
-    data.append('seed', 0);
-    data.append('cfg_scale', 1.8);
-    data.append('motion_bucket_id', 127);
-
-    const response = await axios({
-      method: 'POST',
-      url: 'https://api.stability.ai/v2beta/image-to-video',
-      headers: {
-        ...data.getHeaders(),
-        Authorization: `Bearer ${STABILITY_AI_API_KEY}`,
-      },
-      data: data,
-    });
-
-    console.log('Generation ID:', response.data.id);
-    return response.data.id;
-  } catch (error) {
-    console.error(
-      'Error animating image:',
-      error.response ? error.response.data : error.message
-    );
-    throw error;
-  }
-}
-
-// Main function: Generate an image and animate it
 async function generateAndAnimateImage() {
   try {
-    const prompt = 'Beautiful scape of the space with blackholes and galaxies'; // Modify prompt as needed
+    // Step 1: Generate the image
     console.log('Generating image...');
-    const imagePath = await generateImage(prompt);
+    const imageGeneration = await leonardoai.createGeneration({
+      prompt:
+        'Beautiful portrait of a space explorer with galaxies in the background, vertical format for TikTok',
+      modelId: 'ac614f96-1082-45bf-be9d-757f2d31c174',
+      width: 512,
+      height: 768,
+      num_images: 1,
+      public: false,
+    });
 
+    console.log(
+      'Image generation started. Generation ID:',
+      imageGeneration.data.sdGenerationJob.generationId
+    );
+
+    // Wait for the image to be generated
+    await new Promise((resolve) => setTimeout(resolve, 30000));
+
+    // Step 2: Get the generated image
+    const generatedImage = await leonardoai.getGeneration({
+      id: imageGeneration.data.sdGenerationJob.generationId,
+    });
+
+    const imageUrl =
+      generatedImage.data.generations_by_pk.generated_images[0].url;
+    console.log('Image generated. URL:', imageUrl);
+
+    // Step 3: Animate the generated image
     console.log('Animating image...');
-    const generationId = await animateImage(imagePath);
+    const animationGeneration = await leonardoai.createSVDMotionGeneration({
+      imageUrl: imageUrl,
+      isInitImage: true,
+      motionStrength: 5,
+    });
 
-    console.log('Animation complete. Generation ID:', generationId);
+    console.log(
+      'Animation started. Motion Generation ID:',
+      animationGeneration.data.motionSvdGenerationJob.generationId
+    );
+
+    // Wait for the video to be generated
+    await new Promise((resolve) => setTimeout(resolve, 60000));
+
+    // Step 4: Get the animated video
+    const animatedVideo = await leonardoai.getGeneration({
+      id: animationGeneration.data.motionSvdGenerationJob.generationId,
+    });
+
+    const videoUrl =
+      animatedVideo.data.generations_by_pk.generated_images[0].url;
+    console.log('Animation complete. Video URL:', videoUrl);
   } catch (error) {
     console.error('An error occurred:', error.message);
   }

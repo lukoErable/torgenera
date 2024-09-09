@@ -76,7 +76,6 @@ const YouTube: FC = () => {
 
         const chaptersData: ChaptersResponse = await chaptersRes.json();
         setChapters(chaptersData.chapters);
-        console.log(chaptersData.chapters);
 
         // Fetch content
         const contentRes = await fetchWithRetry(
@@ -121,7 +120,7 @@ const YouTube: FC = () => {
         const imagesRes = await fetchWithRetry('/api/Youtube/generateImages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: chaptersData.chapters }),
+          body: JSON.stringify({ prompts: chaptersData.chapters }),
         });
 
         if (!imagesRes || !imagesRes.ok) {
@@ -201,7 +200,7 @@ const YouTube: FC = () => {
                       />
                     </div>
                     <div className="flex flex-col gap-4 w-1/2 label-text">
-                      <span> Generate a story about yout topic</span>
+                      <span> Generate a story about your topic</span>
                       <LoadingButton
                         type="submit"
                         isLoading={isLoading}
