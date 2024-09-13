@@ -32,3 +32,15 @@ body {
     text-wrap: balance;
   }
 }
+
+.neon-bar {
+  position: absolute;
+  top: 0; /* Positionnez la barre en haut de l'image */
+  left: 50%;
+  transform: translateX(-50%); /* Centrez la barre */
+  width: 100%; /* Largeur de la barre */
+  height: 10px; /* Hauteur de la barre */
+  background-color: #0f0; /* Couleur de la barre */
+  box-shadow: 0 0 5px #0f0, 0 0 10px #0f0, 0 0 20px #0f0, 0 0 40px #0f0; /* Effet de lueur néon */
+  z-index: 10; /* Assurez-vous que la barre est au-dessus de l'image */
+}

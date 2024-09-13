@@ -1,192 +1,108 @@
 'use client';
 
-import React, { FC, useCallback, useMemo, useRef, useState } from 'react';
+import { FC, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ToastContainer, toast } from 'react-toastify';
+import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { ErrorFallback } from '../components/ErrorFallback';
-import { GeneratedDocumentary } from '../components/Youtube/GeneratedDocumentary';
 import LoadingButton from '../components/Youtube/LoadingButton';
-import { ModelSelect } from '../components/Youtube/ModelSelect';
-import TopicSelector from '../components/Youtube/TopicSelector';
-import { models, ttsModels } from '../utils/constants';
-import { Chapter, ChapterContent } from '../utils/types';
+import ImageMotionGenerator from '../components/Youtube/Motion/ImageMotionGenerator';
+import { GeneratedDocumentary } from '../components/Youtube/Voice/GeneratedDocumentary';
+import { ModelSelect } from '../components/Youtube/Voice/ModelSelect';
+import TopicSelector from '../components/Youtube/Voice/TopicSelector';
+import { LongVideo } from '../components/Youtube/Voice/longVideo';
+import { ShortVideo } from '../components/Youtube/Voice/shortVideo';
 
 const YouTube: FC = () => {
-  const [topic, setTopic] = useState<string>('');
-  const [chapters, setChapters] = useState<Chapter>({});
-  const [chapterContent, setChapterContent] = useState<ChapterContent>({});
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [model, setModel] = useState<string>(
-    'mistralai/Mixtral-8x7B-Instruct-v0.1'
-  );
-  const [ttsModel, setTtsModel] = useState<string>('coqui/XTTS-v2');
-  const [audioSrc, setAudioSrc] = useState<string | null>(null);
-  const [images, setImages] = useState<string[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const {
+    topic,
+    setTopic,
+    isLoading,
+    model,
+    setModel,
+    ttsModel,
+    setTtsModel,
+    videoType,
+    setVideoType,
+    shortSpeech,
+    shortAudioSrc,
+    shortImage,
+    shortVideoURL,
+    handleSubmit,
+    handleTopicSelect,
+    audioRef,
+  } = ShortVideo();
 
-  const fetchWithRetry = async (
-    url: string,
-    options: RequestInit,
-    retries = 3
-  ) => {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const response = await fetch(url, options);
-        if (!response.ok)
-          throw new Error(`Request failed: ${response.statusText}`);
-        return response;
-      } catch (error) {
-        if (i === retries - 1) throw error;
-      }
-    }
-  };
+  const { longOutline, longContent, longAudioSrc, longImages } = LongVideo();
 
-  const handleTopicSelect = (selectedTopic: string) => {
-    setTopic(selectedTopic);
-  };
-
-  const handleGenerateAll = useCallback(
-    async (e: React.FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      setIsLoading(true);
-
-      try {
-        interface ChaptersResponse {
-          chapters: Chapter;
-        }
-
-        interface ContentResponse {
-          content: ChapterContent;
-        }
-
-        // Fetch chapters
-        const chaptersRes = await fetchWithRetry(
-          '/api/Youtube/generateChapters',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic, model }),
-          }
-        );
-
-        if (!chaptersRes || !chaptersRes.ok) {
-          throw new Error('Failed to generate chapters');
-        }
-
-        const chaptersData: ChaptersResponse = await chaptersRes.json();
-        setChapters(chaptersData.chapters);
-
-        // Fetch content
-        const contentRes = await fetchWithRetry(
-          '/api/Youtube/generateAllContent',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              topic,
-              chapters: chaptersData.chapters,
-              model,
-            }),
-          }
-        );
-
-        if (!contentRes || !contentRes.ok) {
-          throw new Error('Failed to generate content');
-        }
-
-        const contentData: ContentResponse = await contentRes.json();
-        setChapterContent(contentData.content);
-
-        // Fetch audio
-        const audioRes = await fetchWithRetry('/api/Youtube/textToSpeech', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: Object.values(contentData.content).join(' '),
-            model: ttsModel,
-          }),
-        });
-
-        if (!audioRes || !audioRes.ok) {
-          throw new Error('Failed to generate audio');
-        }
-
-        const audioBlob = await audioRes.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        setAudioSrc(audioUrl);
-
-        // Generate images for each chapter
-        const imagesRes = await fetchWithRetry('/api/Youtube/generateImages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompts: chaptersData.chapters }),
-        });
-
-        if (!imagesRes || !imagesRes.ok) {
-          throw new Error('Failed to generate images');
-        }
-
-        const imagesData = await imagesRes.json();
-        setImages(imagesData.images);
-
-        toast.success('Documentary and images generated successfully!');
-      } catch (error) {
-        console.error('Error:', error);
-        toast.error(
-          `Failed to generate documentary and images: ${
-            error instanceof Error ? error.message : 'Unknown error'
-          }`
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [topic, model, ttsModel]
-  );
-
-  const chapterEntries = useMemo(() => Object.entries(chapters), [chapters]);
+  const [activeTab, setActiveTab] = useState('generator');
 
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <main className="min-h-screen bg-base-200 p-4 lg:p-8">
+      <main className="min-h-screen bg-gradient-to-b from-base-200 to-base-300 p-4">
         <div className="container mx-auto">
-          <div className="flex flex-col lg:flex-row gap-8">
-            <div className="flex-grow lg:w-3/4">
-              <form
-                onSubmit={handleGenerateAll}
-                className="bg-base-200 p-6 rounded-xl shadow-lg mb-8"
-              >
-                <h2 className="text-2xl font-bold mb-6 text-center text-primary">
-                  Generate Documentary
-                </h2>
-                <div className="">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="w-full">
-                      <label className="label">
-                        <span className="label-text">AI Model</span>
-                      </label>
-                      <ModelSelect
-                        label=""
-                        value={model}
-                        options={models}
-                        onChange={setModel}
-                      />
-                    </div>
-                    <div className="w-full">
-                      <label className="label">
-                        <span className="label-text">TTS Model</span>
-                      </label>
-                      <ModelSelect
-                        label=""
-                        value={ttsModel}
-                        options={ttsModels}
-                        onChange={setTtsModel}
-                      />
-                    </div>
+          <h1 className="text-4xl font-bold text-center text-primary mb-8">
+            AI Video Content Studio
+          </h1>
+
+          <div className="tabs tabs-boxed mb-8 justify-center">
+            <a
+              className={`tab ${activeTab === 'generator' ? 'tab-active' : ''}`}
+              onClick={() => setActiveTab('generator')}
+            >
+              Text / Voice
+            </a>
+            <a
+              className={`tab ${
+                activeTab === 'imageMotion' ? 'tab-active' : ''
+              }`}
+              onClick={() => setActiveTab('imageMotion')}
+            >
+              Motion Images
+            </a>
+          </div>
+
+          {activeTab === 'generator' && (
+            <div className="flex flex-col lg:flex-row gap-8">
+              <div className="flex-grow lg:w-2/3">
+                <form
+                  onSubmit={handleSubmit}
+                  className="bg-base-100 p-6 rounded-xl shadow-lg mb-8"
+                >
+                  <h2 className="text-2xl font-bold mb-6 text-center text-secondary">
+                    Generate Video Content
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                    <ModelSelect
+                      label="Language Model"
+                      value={model}
+                      options={[
+                        {
+                          value: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
+                          label: 'Mixtral 8x7B',
+                        },
+                        {
+                          value: 'meta-llama/Llama-2-70b-chat-hf',
+                          label: 'Llama 2 70B',
+                        },
+                      ]}
+                      onChange={setModel}
+                    />
+                    <ModelSelect
+                      label="Text-to-Speech Model"
+                      value={ttsModel}
+                      options={[
+                        { value: 'coqui/XTTS-v2', label: 'XTTS v2' },
+                        {
+                          value: 'facebook/fastspeech2-en-ljspeech',
+                          label: 'FastSpeech2',
+                        },
+                      ]}
+                      onChange={setTtsModel}
+                    />
                   </div>
-                  <div className="space-x-6 flex">
-                    <div className="w-1/2">
+                  <div className="space-y-4 mb-4">
+                    <div>
                       <label className="label">
                         <span className="label-text">Topic</span>
                       </label>
@@ -199,48 +115,84 @@ const YouTube: FC = () => {
                         className="input input-bordered w-full"
                       />
                     </div>
-                    <div className="flex flex-col gap-4 w-1/2 label-text">
-                      <span> Generate a story about your topic</span>
-                      <LoadingButton
-                        type="submit"
-                        isLoading={isLoading}
-                        label="Generate Documentary"
-                        className="btn btn-primary flex-1"
-                      />
-                    </div>
+                    <ModelSelect
+                      label="Video Type"
+                      value={videoType}
+                      options={[
+                        { value: 'short', label: 'Short Video (3 min)' },
+                        { value: 'long', label: 'Long Video (10+ min)' },
+                      ]}
+                      onChange={(value) =>
+                        setVideoType(value as 'short' | 'long')
+                      }
+                    />
                   </div>
-                </div>
-              </form>
-
-              {chapterEntries.length > 0 && (
-                <div className="bg-base-200 p-6 rounded-xl shadow-lg mb-8">
-                  <h2 className="text-2xl font-bold mb-6 text-center text-primary">
-                    Generated Content
-                  </h2>
-                  <GeneratedDocumentary
-                    chapters={chapterEntries}
-                    chapterContent={chapterContent}
-                    images={images}
+                  <LoadingButton
+                    type="submit"
+                    isLoading={isLoading}
+                    label={`Generate ${
+                      videoType === 'short' ? 'Short' : 'Long'
+                    } Video Content`}
+                    className="btn btn-primary w-full"
                   />
-                  {audioSrc && (
-                    <div className="bg-base-200 p-6 rounded-xl shadow-lg">
+                </form>
+
+                {videoType === 'short' && shortSpeech && (
+                  <div className="bg-base-100 p-6 rounded-xl shadow-lg mb-8">
+                    <h3 className="text-xl font-bold mb-4 text-secondary">
+                      Short Video Content
+                    </h3>
+                    <p className="font-semibold mb-2">{topic}</p>
+                    <p className="whitespace-pre-wrap mb-4">{shortSpeech}</p>
+                    {shortAudioSrc && (
                       <audio
                         ref={audioRef}
-                        src={audioSrc}
+                        src={shortAudioSrc}
                         controls
-                        className="w-full"
+                        className="w-full mb-4"
                       />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="lg:w-1/4">
-              <div className="sticky top-8">
+                    )}
+                    {shortVideoURL && (
+                      <div>
+                        <h4 className="text-lg font-semibold mb-2">
+                          Generated Video
+                        </h4>
+                        <video
+                          src={shortVideoURL}
+                          controls
+                          className="w-full rounded-lg"
+                          poster={shortImage || undefined}
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {videoType === 'long' && longOutline.length > 0 && (
+                  <GeneratedDocumentary
+                    chapters={longOutline.map((title, index) => [
+                      `chapter-${index + 1}`,
+                      title,
+                    ])}
+                    chapterContent={Object.fromEntries(
+                      longContent.map((content, index) => [
+                        `chapter-${index + 1}`,
+                        content,
+                      ])
+                    )}
+                    images={longImages}
+                  />
+                )}
+              </div>
+              <div className="lg:w-1/3">
                 <TopicSelector onTopicSelect={handleTopicSelect} />
               </div>
             </div>
-          </div>
+          )}
+
+          {activeTab === 'imageMotion' && <ImageMotionGenerator />}
         </div>
         <ToastContainer position="bottom-right" theme="colored" />
       </main>

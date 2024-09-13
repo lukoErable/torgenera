@@ -1,50 +1,29 @@
-import axios from 'axios';
-import { NextRequest, NextResponse } from 'next/server';
+import { HfInference } from '@huggingface/inference';
+import { NextResponse } from 'next/server';
 
-const apiKey = process.env.LEONARDO_API_KEY;
-const authorization = `Bearer ${apiKey}`;
+const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
+  const { prompts } = await request.json();
+
   try {
-    const body = await req.json();
-    const { prompt } = body;
+    const imagePromises = prompts.map(async (prompt: string) => {
+      const response = await hf.textToImage({
+        model: 'stabilityai/stable-diffusion-2',
+        inputs: prompt,
+      });
+      return response;
+    });
 
-    if (!prompt) {
-      console.log('pas de promnt');
-    }
+    const images = await Promise.all(imagePromises);
+    const imageUrls = images.map((img) => URL.createObjectURL(new Blob([img])));
+    console.log(imageUrls);
 
-    const generationPayload = {
-      height: 512,
-      width: 512,
-      modelId: '6bef9f1b-29cb-40c7-b9df-32b51c1f67d3',
-      prompt,
-    };
-
-    const generationResponse = await axios.post(
-      'https://cloud.leonardo.ai/api/rest/v1/generations',
-      generationPayload,
-      {
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-          authorization,
-        },
-      }
-    );
-    console.log(generationResponse);
-
-    if (generationResponse.status !== 200) {
-      throw new Error(
-        `Failed to generate images: ${generationResponse.statusText}`
-      );
-    }
-
-    const images = generationResponse.data.generations_by_pk.images;
-    return NextResponse.json({ images });
+    return NextResponse.json({ images: imageUrls }, { status: 200 });
   } catch (error) {
     console.error('Error generating images:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to generate images' },
       { status: 500 }
     );
   }

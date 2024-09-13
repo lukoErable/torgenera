@@ -1,33 +1,28 @@
 import { HfInference } from '@huggingface/inference';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-const inference = new HfInference('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');
+const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
 
-export async function POST(req: NextRequest) {
-  const { text } = await req.json();
+export async function POST(request: Request) {
+  const { text, model } = await request.json();
 
   try {
-    const response = await inference.textToSpeech({
+    const response = await hf.textToSpeech({
       model: 'facebook/mms-tts-eng',
       inputs: text,
     });
 
-    if (!response) {
-      throw new Error('No response received from the text-to-speech API');
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-
-    return new NextResponse(arrayBuffer, {
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    return new NextResponse(audioBuffer, {
+      status: 200,
       headers: {
         'Content-Type': 'audio/wav',
-        'Content-Length': arrayBuffer.byteLength.toString(),
       },
     });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error generating audio:', error);
     return NextResponse.json(
-      { error: 'An error occurred while processing your request' },
+      { error: 'Failed to generate audio' },
       { status: 500 }
     );
   }

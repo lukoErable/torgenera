@@ -13,7 +13,7 @@ const LoadingButton: FC<LoadingButtonProps> = ({
   return (
     <button
       {...props}
-      className={`w-full bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition duration-300 text-sm font-semibold uppercase tracking-wider ${
+      className={`w-fit bg-dark-primary text-white rounded-lg hover:bg-light-primary disabled:bg-gray-500 disabled:cursor-not-allowed transition duration-300 text-md font-semibold tracking-wider ${
         props.className || ''
       }`}
       disabled={isLoading || props.disabled}

@@ -3,9 +3,9 @@ import fs from 'fs';
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import util from 'util';
-import downloadClip from '../../../lib/downloadClip';
-import getBroadcasterIds from '../../../lib/getBroadcasterIds';
-import getPopularClips from '../../../lib/getClip';
+import downloadClip from '../../../lib/twitch/downloadClip';
+import getBroadcasterIds from '../../../lib/twitch/getBroadcasterIds';
+import getPopularClips from '../../../lib/twitch/getClip';
 
 const execAsync = util.promisify(exec);
 
